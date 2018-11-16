@@ -1,3 +1,43 @@
+FORK of the Android Camera2Video Sample
+===================================
+
+This fork is meant to showcase an issue occurring on the Pixel 3 XL. 
+
+On a Pixel 3 XL the following behaviour is observed, which is different to other phones on which we tested the same.
+Whenever the `AE_MODE` is set to `AE_MODE_OFF` but keeping the same values for `SENSOR_EXPOSURE_TIME`, `SENSOR_SENSITIVITY`, `SENSOR_FRAME_DURATION`
+based on the last `TotalCaptureResult`, the darker areas of the preview will get noticeable darker. 
+
+The expected behavior would be that the exposure of the preview stays the same (by using the same exposureTime, ...) and not result in a different brightness. 
+
+The camera captureRequest itself is configured default before that, no tonemap, transformation matrix or gains were configured. 
+
+
+
+To showcase this issue better please see the provided git repository with a slightly modified `Android Camera2Video Sample`, to show the problem. 
+
+- Start the sample
+- Accept permissions
+- Point camera towards something with also some darker areas
+- Press the button (Goes to `AE_MODE_OFF`)
+- Observed behavior:
+  - The dark areas will get noticeable darker, the bright areas seem to stay almost equal
+- Expected behavior:
+  - The preview stays the same (as the same iso, exposureTime, frameDuration is used)
+- Press the button again to go back to `AE_MODE_ON`
+- You can repeat this.
+
+
+
+This can be reproduced on any Pixel 3 XL as far as my testing goes. 
+
+
+Used phone for the provided screencast:
+- Pixel 3 XL
+- Build number: PQ1A-181105.017.A1
+- Security patch level: November 5th, 2018
+
+
+
 
 Android Camera2Video Sample
 ===================================

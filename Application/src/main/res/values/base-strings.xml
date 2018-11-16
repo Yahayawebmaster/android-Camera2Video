@@ -21,8 +21,10 @@
         <![CDATA[
         
             
-            This sample demonstrates how to record video using Camera2 API.
-            
+            This sample demonstrates an issue
+            on the Pixel 3XL when setting
+            the AE_MODE_OFF.
+
         
         ]]>
     </string>
