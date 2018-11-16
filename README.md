@@ -27,7 +27,6 @@ To showcase this issue better please see the provided git repository with a slig
 - You can repeat this.
 
 
-
 This can be reproduced on any Pixel 3 XL as far as my testing goes. 
 
 
@@ -35,6 +34,24 @@ Used phone for the provided screencast:
 - Pixel 3 XL
 - Build number: PQ1A-181105.017.A1
 - Security patch level: November 5th, 2018
+
+
+
+-------------------------
+
+Information about the modified sample. 
+
+The relevant modifications to showcase can be found in the `Camera2VideoFragment` Lines 311 - 325. 
+And the modifications for the callback to get the `TotalCaptureResult` in Lines 543 - 557.
+
+
+
+
+
+
+
+
+
 
 
 
