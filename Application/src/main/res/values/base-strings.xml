@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
+<?xml version="1.0" encoding="UTF-8"?><!--
  Copyright 2013 The Android Open Source Project
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +20,10 @@
         <![CDATA[
         
             
-            This sample demonstrates how to record video using Camera2 API.
-            
+            This sample demonstrates an issue
+            on the Huawei P30 PRO when setting
+            the COLOR_CORRECTION_MODE_TRANSFORM_MATRIX.
+
         
         ]]>
     </string>

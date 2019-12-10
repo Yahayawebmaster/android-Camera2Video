@@ -36,6 +36,10 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.ColorSpaceTransform;
+import android.hardware.camera2.params.RggbChannelVector;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.MediaRecorder;
 import android.os.Bundle;
@@ -45,6 +49,7 @@ import android.support.annotation.NonNull;
 import android.support.v13.app.FragmentCompat;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
+import android.util.Rational;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.LayoutInflater;
@@ -55,8 +60,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -67,8 +70,6 @@ import java.util.concurrent.TimeUnit;
 public class Camera2VideoFragment extends Fragment
         implements View.OnClickListener, FragmentCompat.OnRequestPermissionsResultCallback {
 
-    private static final int SENSOR_ORIENTATION_DEFAULT_DEGREES = 90;
-    private static final int SENSOR_ORIENTATION_INVERSE_DEGREES = 270;
     private static final SparseIntArray DEFAULT_ORIENTATIONS = new SparseIntArray();
     private static final SparseIntArray INVERSE_ORIENTATIONS = new SparseIntArray();
 
@@ -162,9 +163,9 @@ public class Camera2VideoFragment extends Fragment
     private MediaRecorder mMediaRecorder;
 
     /**
-     * Whether the app is recording video now
+     * Defines if we try to set the transformation matrix custom
      */
-    private boolean mIsRecordingVideo;
+    private boolean mCustomWhiteBalance = false;
 
     /**
      * An additional thread for running tasks that shouldn't block the UI.
@@ -215,8 +216,6 @@ public class Camera2VideoFragment extends Fragment
         }
 
     };
-    private Integer mSensorOrientation;
-    private String mNextVideoAbsolutePath;
     private CaptureRequest.Builder mPreviewBuilder;
 
     public static Camera2VideoFragment newInstance() {
@@ -281,7 +280,7 @@ public class Camera2VideoFragment extends Fragment
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
-        mButtonVideo = (Button) view.findViewById(R.id.video);
+        mButtonVideo = (Button) view.findViewById(R.id.toggle_wb_mode);
         mButtonVideo.setOnClickListener(this);
         view.findViewById(R.id.info).setOnClickListener(this);
     }
@@ -307,12 +306,35 @@ public class Camera2VideoFragment extends Fragment
     @Override
     public void onClick(View view) {
         switch (view.getId()) {
-            case R.id.video: {
-                if (mIsRecordingVideo) {
-                    stopRecordingVideo();
-                } else {
-                    startRecordingVideo();
+            case R.id.toggle_wb_mode: {
+                if (lastCaptureResult == null) {
+                    return;
                 }
+
+                mCustomWhiteBalance = !mCustomWhiteBalance;
+                if (mCustomWhiteBalance) {
+                    TotalCaptureResult last = lastCaptureResult;
+                    ColorSpaceTransform colorCorrectionTransform = last.get(CaptureResult.COLOR_CORRECTION_TRANSFORM);
+                    RggbChannelVector colorCorrectionGains = last.get(CaptureResult.COLOR_CORRECTION_GAINS);
+
+                    // we need to disable the AWB otherwise nothing would happen.
+                    mPreviewBuilder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_OFF);
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX);
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_TRANSFORM, colorCorrectionTransform);
+                    // define the calculated correction gains
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_GAINS, colorCorrectionGains);
+                } else {
+                    mPreviewBuilder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO);
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_GAINS, new RggbChannelVector(1f, 1f, 1f, 1f));
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_MODE, CaptureRequest.COLOR_CORRECTION_MODE_FAST);
+
+                    Rational one = new Rational(1, 1);
+                    Rational zero = Rational.ZERO;
+                    Rational[] identityValues = new Rational[]{one, zero, zero, zero, one, zero, zero, zero, one};
+                    mPreviewBuilder.set(CaptureRequest.COLOR_CORRECTION_TRANSFORM, new ColorSpaceTransform(identityValues));
+                }
+                updatePreview();
+
                 break;
             }
             case R.id.info: {
@@ -432,9 +454,7 @@ public class Camera2VideoFragment extends Fragment
 
             // Choose the sizes for camera preview and video recording
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
-            StreamConfigurationMap map = characteristics
-                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (map == null) {
                 throw new RuntimeException("Cannot get available preview/video sizes");
             }
@@ -531,13 +551,21 @@ public class Camera2VideoFragment extends Fragment
         }
         try {
             setUpCaptureRequestBuilder(mPreviewBuilder);
-            HandlerThread thread = new HandlerThread("CameraPreview");
-            thread.start();
-            mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), null, mBackgroundHandler);
+            mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), captureCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
+
+    private TotalCaptureResult lastCaptureResult;
+
+    CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
+        @Override
+        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+            super.onCaptureCompleted(session, request, result);
+            lastCaptureResult = result;
+        }
+    };
 
     private void setUpCaptureRequestBuilder(CaptureRequest.Builder builder) {
         builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
@@ -574,122 +602,11 @@ public class Camera2VideoFragment extends Fragment
         mTextureView.setTransform(matrix);
     }
 
-    private void setUpMediaRecorder() throws IOException {
-        final Activity activity = getActivity();
-        if (null == activity) {
-            return;
-        }
-        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        if (mNextVideoAbsolutePath == null || mNextVideoAbsolutePath.isEmpty()) {
-            mNextVideoAbsolutePath = getVideoFilePath(getActivity());
-        }
-        mMediaRecorder.setOutputFile(mNextVideoAbsolutePath);
-        mMediaRecorder.setVideoEncodingBitRate(10000000);
-        mMediaRecorder.setVideoFrameRate(30);
-        mMediaRecorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
-        mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        switch (mSensorOrientation) {
-            case SENSOR_ORIENTATION_DEFAULT_DEGREES:
-                mMediaRecorder.setOrientationHint(DEFAULT_ORIENTATIONS.get(rotation));
-                break;
-            case SENSOR_ORIENTATION_INVERSE_DEGREES:
-                mMediaRecorder.setOrientationHint(INVERSE_ORIENTATIONS.get(rotation));
-                break;
-        }
-        mMediaRecorder.prepare();
-    }
-
-    private String getVideoFilePath(Context context) {
-        final File dir = context.getExternalFilesDir(null);
-        return (dir == null ? "" : (dir.getAbsolutePath() + "/"))
-                + System.currentTimeMillis() + ".mp4";
-    }
-
-    private void startRecordingVideo() {
-        if (null == mCameraDevice || !mTextureView.isAvailable() || null == mPreviewSize) {
-            return;
-        }
-        try {
-            closePreviewSession();
-            setUpMediaRecorder();
-            SurfaceTexture texture = mTextureView.getSurfaceTexture();
-            assert texture != null;
-            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-            mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-            List<Surface> surfaces = new ArrayList<>();
-
-            // Set up Surface for the camera preview
-            Surface previewSurface = new Surface(texture);
-            surfaces.add(previewSurface);
-            mPreviewBuilder.addTarget(previewSurface);
-
-            // Set up Surface for the MediaRecorder
-            Surface recorderSurface = mMediaRecorder.getSurface();
-            surfaces.add(recorderSurface);
-            mPreviewBuilder.addTarget(recorderSurface);
-
-            // Start a capture session
-            // Once the session starts, we can update the UI and start recording
-            mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
-
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    mPreviewSession = cameraCaptureSession;
-                    updatePreview();
-                    getActivity().runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            // UI
-                            mButtonVideo.setText(R.string.stop);
-                            mIsRecordingVideo = true;
-
-                            // Start recording
-                            mMediaRecorder.start();
-                        }
-                    });
-                }
-
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    Activity activity = getActivity();
-                    if (null != activity) {
-                        Toast.makeText(activity, "Failed", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            }, mBackgroundHandler);
-        } catch (CameraAccessException | IOException e) {
-            e.printStackTrace();
-        }
-
-    }
-
     private void closePreviewSession() {
         if (mPreviewSession != null) {
             mPreviewSession.close();
             mPreviewSession = null;
         }
-    }
-
-    private void stopRecordingVideo() {
-        // UI
-        mIsRecordingVideo = false;
-        mButtonVideo.setText(R.string.record);
-        // Stop recording
-        mMediaRecorder.stop();
-        mMediaRecorder.reset();
-
-        Activity activity = getActivity();
-        if (null != activity) {
-            Toast.makeText(activity, "Video saved: " + mNextVideoAbsolutePath,
-                    Toast.LENGTH_SHORT).show();
-            Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
-        }
-        mNextVideoAbsolutePath = null;
-        startPreview();
     }
 
     /**

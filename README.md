@@ -1,3 +1,59 @@
+FORK of the Android Camera2Video Sample
+===================================
+
+This fork is meant to showcase an issue occurring on the Huawei P30 Pro.
+
+On a Huawei P30 Pro the following behaviour is observed, which is different to other phones on which we tested the same.
+Whenever the `COLOR_CORRECTION_MODE` is set to `COLOR_CORRECTION_MODE_TRANSFORM_MATRIX` but keeping the same values for `COLOR_CORRECTION_TRANSFORM`, `COLOR_CORRECTION_GAINS`
+based on the last `TotalCaptureResult`, the whitebalance the preview will be green.
+
+The expected behavior would be that the whitebalance of the preview stays the same (by using the same values the camera used before, ...) and not result in a different adjustment.
+
+The camera captureRequest itself is configured default before that, no tonemap, transformation matrix or gains were configured.
+The resulting goal would be to allow fine-tuning the whitebalance in implementation, which is not possible if the default values already result in a broken result.
+
+
+
+To showcase this issue better please see the provided git repository with a slightly modified `Android Camera2Video Sample`, to show the problem. 
+
+- Start the sample
+- Accept permissions
+- Point camera towards something with also some darker areas
+- Press the button (Goes to `COLOR_CORRECTION_MODE_TRANSFORM_MATRIX`)
+- Observed behavior:
+  - The preview will be greenish (on a Huawei P30 Pro)
+- Expected behavior:
+  - The preview stays the same (as the same transform and gains are used)
+- Press the button again to go back to auto wb
+- You can repeat this.
+
+
+This can be reproduced on any Huawei P30 Pro as far as my testing goes.
+
+
+Used phone for the provided screencast:
+- Huawei P30 Pro (Model: VOG-L29)
+- Build number: 10.0.0.168 (C431E19R2P5patch01)
+
+
+
+-------------------------
+
+Information about the modified sample. 
+
+The relevant modifications to showcase can be found in the `Camera2VideoFragment` Lines 316 - 325.
+
+
+
+
+
+
+
+
+
+
+
+
 
 Android Camera2Video Sample
 ===================================

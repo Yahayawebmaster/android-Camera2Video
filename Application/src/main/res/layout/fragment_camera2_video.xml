@@ -33,11 +33,11 @@
         android:background="#4285f4">
 
         <Button
-            android:id="@+id/video"
+            android:id="@+id/toggle_wb_mode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="@string/record" />
+            android:text="@string/toggle_wb_mode" />
 
         <ImageButton
             android:id="@+id/info"
