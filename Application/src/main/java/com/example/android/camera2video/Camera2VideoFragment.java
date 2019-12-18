@@ -314,11 +314,13 @@ public class Camera2VideoFragment extends Fragment
                     long currentExposureTime = last.get(CaptureResult.SENSOR_EXPOSURE_TIME);
                     int currentSensitivity = last.get(CaptureResult.SENSOR_SENSITIVITY);
                     long currentFrameDuration = last.get(CaptureResult.SENSOR_FRAME_DURATION);
+                    int boost = last.get(CaptureResult.CONTROL_POST_RAW_SENSITIVITY_BOOST);
 
                     mPreviewBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF);
                     mPreviewBuilder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, currentExposureTime);
                     mPreviewBuilder.set(CaptureRequest.SENSOR_SENSITIVITY, currentSensitivity);
                     mPreviewBuilder.set(CaptureRequest.SENSOR_FRAME_DURATION, currentFrameDuration);
+                    mPreviewBuilder.set(CaptureRequest.CONTROL_POST_RAW_SENSITIVITY_BOOST, boost);
                 } else {
                     mPreviewBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
                 }
